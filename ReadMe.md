@@ -10,7 +10,7 @@ Now supports **concurrent multi-client handling** using a **Thread-per-Client mo
 ##  Features
 
 - TCP-based Client-Server communication  
-- 🧵 Thread-per-Client concurrency model  
+- Thread-per-Client concurrency model  
 - Multiple clients handled simultaneously  
 - Expression parsing and evaluation  
 - File-based input processing  
@@ -90,7 +90,7 @@ gcc src/Core/*.c src/io/*.c src/Network/*.c src/Main.c -Iinclude -o app
 
 ---
 
-## 🧪 Example Input 
+##  Example Input 
 
 ```
 12+5=
