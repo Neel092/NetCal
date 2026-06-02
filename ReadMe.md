@@ -1,4 +1,4 @@
-#  ThreadCalc (C)
+#  NetCal (C)
 
 ## Overview
 
