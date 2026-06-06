@@ -7,8 +7,9 @@
 
 #include "Network/Server.h"
 #include "Core/Parser.h"
+#include "../include/Network/tpool.h"
 
-void *Process(void *arg)
+void Process(void *arg)
 {
     int client_fd = *(int *)arg;
     free(arg);
@@ -69,6 +70,8 @@ void server()
 
     printf("Server running...\n");
 
+    threadpool_t *pool = threadpool_create(4);
+
     while (1)
     {
         // Accepting client
@@ -86,18 +89,17 @@ void server()
         printf("New Client connected...\n");
 
         // initialization new thread for new client (POSIX Threads) => posix(Portable Operating System Interface)
-        pthread_t thread_id;
+        // pthread_t thread_id;
 
         // create thread
-        pthread_create(&thread_id, NULL, Process, client_fd);
+        threadpool_submit(pool, Process, client_fd);
         /*
             thread_id => identify the client
             Process => which fun to run
             Client_fd => data to process
         */
-
-        // Detach
-        pthread_detach(thread_id);
     }
+    threadpool_destroy(pool);
+    // threadpool_destory
     close(server_fd);
 }
