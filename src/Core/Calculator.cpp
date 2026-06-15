@@ -1,19 +1,19 @@
 #include <stdio.h>
-#include "Core/Calculator.h"
+#include "Core/Calculator.hpp"
 
-int calculate(int num1, int num2, char operator, int *result)
+int calculate(int num1, int num2, char operation, int *result)
 {
     int temp = 0;
     if (result == NULL)
         result = &temp;
 
-    if ((operator == '/' || operator == '%') && num2 == 0)
+    if ((operation == '/' || operation == '%') && num2 == 0)
     {
         printf("Error: division by zero\n");
         return -1;
     }
 
-    switch (operator)
+    switch (operation)
     {
     case '+':
         *result = num1 + num2;

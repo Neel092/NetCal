@@ -1,212 +1,314 @@
-# NetCal (C)
+# NetCal (C++)
 
 ## Overview
 
-A modular client-server calculator built in C using socket programming.
-Supports concurrent multi-client handling using a **Thread Pool model**, allowing multiple users to interact with the server simultaneously while keeping resource usage under control.
+**NetCal** is a modular multi-threaded client-server calculator built in **Modern C++** using **TCP socket programming** and a custom **Thread Pool** implementation.
+
+The project demonstrates low-level networking, concurrent task execution, expression parsing, and modular software design. Instead of spawning a new thread for every client connection, NetCal uses a fixed-size thread pool to efficiently serve multiple clients while maintaining predictable resource usage.
 
 ---
 
 ## Features
 
-- TCP-based client-server communication
-- Thread Pool concurrency model (4 workers, circular task queue)
-- Multiple clients handled simultaneously
-- Expression parsing and evaluation
-- File-based batch input processing
-- Interactive keyboard input (character-by-character via `getch`)
-- Modular architecture (Parser, Calculator, Networking, I/O)
+* TCP-based client-server communication
+* Custom Thread Pool implementation
+* Fixed-size circular task queue
+* Concurrent multi-client support
+* Expression parsing and evaluation
+* Interactive keyboard input
+* File-based batch processing
+* Modular C++ architecture
+* Graceful worker shutdown
 
 ---
 
 ## Thread Pool Architecture
 
-### Idea
+### Design Idea
 
-Instead of spawning a new thread per client, incoming connections are submitted as tasks to a pre-allocated pool of worker threads. This keeps memory and scheduling overhead constant regardless of connection volume.
+Creating a new thread for every incoming connection is expensive and does not scale well.
+
+NetCal uses a **Thread Pool model**:
+
+* A fixed number of worker threads are created during server startup.
+* Incoming client connections are converted into tasks.
+* Tasks are inserted into a shared circular queue.
+* Worker threads continuously fetch and execute tasks.
+* The number of threads remains constant regardless of the number of clients.
+
+This approach reduces:
+
+* Thread creation overhead
+* Context switching cost
+* Memory consumption
+* Scheduling overhead
 
 ---
 
-### How It Works
+### Components
 
-**Main Thread:**
-- Accepts incoming client connections
-- Submits each connection as a task to the thread pool
+#### Main Thread
 
-**Worker Thread:**
-- Waits on a condition variable when the queue is empty
-- Dequeues and executes the next task when signalled
-- Handles the full client lifecycle: read, evaluate, respond, close
+Responsible for:
 
-**Task Queue:**
-- Fixed-size circular buffer (MAX_QUEUE = 100)
-- Producers block when the queue is full (back-pressure)
-- Shutdown is cooperative: workers drain the queue, then exit cleanly on join
+* Creating the server socket
+* Binding and listening on a TCP port
+* Accepting incoming connections
+* Submitting client requests to the thread pool
+
+---
+
+#### Worker Threads
+
+Each worker thread:
+
+* Waits if the queue is empty
+* Dequeues the next task
+* Reads client requests
+* Parses and evaluates expressions
+* Sends the result back
+* Closes the client connection
+
+---
+
+#### Task Queue
+
+The thread pool uses:
+
+* Fixed-size circular buffer
+* Producer-consumer synchronization
+* Mutex for shared queue protection
+* Condition variables for blocking and signalling
+
+Features:
+
+* Queue Capacity: `MAX_QUEUE = 100`
+* Producers block when queue is full
+* Workers sleep when queue is empty
+* Graceful shutdown support
 
 ---
 
 ## System Flow
 
-```
+```text
 Client                          Server
+
   |                               |
-  | ./app -C --> select 2         | ./app -C --> select 1
+  | socket()                      | socket()
   |                               |
-  v                               v
-client()                       server()
+  | connect() ------------------> | bind()
+  |                               | listen()
   |                               |
-  | socket()                      | socket() + bind() + listen()
-  |                               |
-  | connect(127.0.0.1:8080) ----> accept()
-  |                               |
-  |                               v
-  |                          threadpool_submit(Process, client_fd)
+  |                               | accept()
   |                               |
   |                               v
-  |                          worker thread: Process(client_fd)
-  |                               |
-  | send("12+5=") --------------> read(buffer)
+  |                    threadpool_submit()
   |                               |
   |                               v
-  |                          parse_and_calculate("12+5=")
+  |                      Worker Thread
   |                               |
-  |                               v
-  |                          calculate(12, '+', 5)
+  | send("12+5=") -------------> read()
   |                               |
-  | recv("17")  <---------------- send("17")
+  |                        parse()
+  |                        calculate()
   |                               |
-  | print "Server replied: 17"    |
+  | recv("17") <--------------- send("17")
   |                               |
-  | send("Q") ------------------> detect 'Q'
+  | send("Q") -----------------> close()
   |                               |
-  v                               v
-close(sock)                  close(client_fd)
+close()                       Worker Ready
 ```
 
 ---
 
 ## Tech Stack
 
-- C (C99, System Programming)
-- POSIX Sockets (TCP/IPv4 Networking)
-- POSIX Threads (pthread, mutex, condition variables)
-- Modular design (multiple translation units)
+* C++17
+* POSIX TCP Sockets
+* POSIX Threads (pthread)
+* Mutex and Condition Variables
+* Circular Queue
+* Linux System Programming
 
 ---
 
 ## Project Structure
 
-```
+```text
 NetCal/
-├── src/
-│   ├── Main.c
-│   ├── Core/
-│   │   ├── Calculator.c
-│   │   └── Parser.c
-│   ├── Network/
-│   │   ├── Server.c
-│   │   ├── Client.c
-│   │   └── tpool.c
-│   └── io/
-│       └── Input.c
-├── include/
-│   ├── conio.h
-│   ├── Core/
-│   │   ├── Calculator.h
-│   │   └── Parser.h
-│   ├── Network/
-│   │   ├── Server.h
-│   │   ├── Client.h
-│   │   └── tpool.h
-│   └── io/
-│       └── Input.h
-└── Data/
+
+├── src
+│   ├── Main.cpp
+│   │
+│   ├── Core
+│   │   ├── Calculator.cpp
+│   │   └── Parser.cpp
+│   │
+│   ├── Network
+│   │   ├── Server.cpp
+│   │   ├── Client.cpp
+│   │   └── tpool.cpp
+│   │
+│   └── io
+│       └── Input.cpp
+│
+
+├── include
+│   ├── Core
+│   │   ├── Calculator.hpp
+│   │   └── Parser.hpp
+│   │
+│   ├── Network
+│   │   ├── Server.hpp
+│   │   ├── Client.hpp
+│   │   └── tpool.hpp
+│   │
+│   └── io
+│       └── Input.hpp
+│
+
+└── Data
     └── file.txt
 ```
 
 ---
 
-## How to Run
+## Build
 
-### Compile
+Compile using:
 
 ```bash
-gcc src/Core/*.c src/io/*.c src/Network/*.c src/Main.c -Iinclude -lpthread -o app
+g++ -std=c++17 \
+src/Core/*.cpp \
+src/io/*.cpp \
+src/Network/*.cpp \
+src/Main.cpp \
+-Iinclude \
+-lpthread \
+-o app
 ```
 
-### Run Modes
+---
 
-#### Keyboard
+## Run Modes
+
+### Keyboard Mode
 
 ```bash
 ./app -k
 ```
 
-Enter digits and operators one key at a time. Press `Enter` to evaluate. Press `Esc` to exit.
+* Enter expression using keyboard
+* Press Enter to evaluate
+* Press Esc to exit
 
-#### File
+---
+
+### File Mode
 
 ```bash
 ./app -f
 ```
 
-Evaluates all expressions in `Data/file.txt` and prints results to stdout.
+Reads expressions from:
 
-#### Client-Server
-
-```bash
-# Terminal 1 - start server
-./app -C
-# Select: 1
-
-# Terminal 2 - start client
-./app -C
-# Select: 2
+```text
+Data/file.txt
 ```
+
+and prints results to stdout.
 
 ---
 
-## Example Input
+### Client-Server Mode
 
+Start Server:
+
+```bash
+./app -C
+
+Select:
+1 -> Server
 ```
+
+Start Client:
+
+```bash
+./app -C
+
+Select:
+2 -> Client
+```
+
+Multiple clients can connect simultaneously.
+
+---
+
+## Example Expressions
+
+```text
 12+5=
+
 10*3=
+
 100/5=
+
 50%6=
 ```
 
-Supported operators: `+`  `-`  `*`  `/`  `%`
+Supported Operators:
 
-Multiple expressions can be chained on a single line:
-
+```text
++
+-
+*
+/
+%
 ```
+
+Multiple expressions can be chained:
+
+```text
 12+5=10*3=
 ```
 
 ---
 
-## Learnings
+## Key Learnings
 
-- TCP socket lifecycle (`socket`, `bind`, `listen`, `accept`, `read`/`send`, `close`)
-- Thread pool design with POSIX mutex and condition variable synchronisation
-- Circular task queue with producer-consumer back-pressure
-- Memory management in concurrent systems (heap-allocated `client_fd` per connection)
-- Modular system design in C with separated headers and translation units
+This project helped me understand:
+
+* TCP socket lifecycle
+* Client-server architecture
+* Thread Pool design
+* Producer-consumer synchronization
+* Circular queue implementation
+* Mutex and condition variables
+* Concurrent programming in C++
+* Expression parsing and evaluation
+* Modular software architecture
 
 ---
 
 ## Future Improvements
 
-- Event-driven model using `select()` / `epoll()`
-- Async networking using Asio (standalone or Boost.Asio) as an alternative to the POSIX thread pool
-- Improved error handling and validation throughout networking layer
-- Configurable port and pool size via CLI arguments
-- Makefile for cleaner builds
-- Logging and monitoring system
-- Containerization (Docker)
+* Async networking using Boost.Asio
+
+* Configurable port and thread pool size
+
+* Logging system
+
+* Unit testing using Google Test
+
+* Docker support
+
+* Event-driven server using epoll
 
 ---
 
 ## Author
 
-Neel Patil
+**Neel Patil**
+
+Computer Science Student

@@ -1,12 +1,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <pthread.h>
 
-#include "../include/Network/tpool.h"
+#include "../include/Network/tpool.hpp"
 
 static void *worker_thread(void *arg)
 {
-    threadpool_t *pool = arg;
+    threadpool_t *pool = (threadpool_t *)arg;
 
     while (1)
     {
@@ -38,7 +39,7 @@ static void *worker_thread(void *arg)
 
 threadpool_t *threadpool_create(int num_threads)
 {
-    threadpool_t *pool = malloc(sizeof(threadpool_t));
+    threadpool_t *pool = (threadpool_t *)malloc(sizeof(threadpool_t));
     pool->num_threads = num_threads;
     pool->queue_size = 0;
     pool->queue_front = 0;
@@ -49,7 +50,7 @@ threadpool_t *threadpool_create(int num_threads)
     pthread_cond_init(&pool->not_empty, NULL);
     pthread_cond_init(&pool->not_full, NULL);
 
-    pool->workers = malloc(num_threads * sizeof(pthread_t));
+    pool->workers = (pthread_t *)malloc(num_threads * sizeof(pthread_t));
     for (int i = 0; i < num_threads; i++)
         pthread_create(&pool->workers[i], NULL, worker_thread, pool);
 

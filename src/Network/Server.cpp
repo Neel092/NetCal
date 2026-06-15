@@ -5,9 +5,9 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#include "Network/Server.h"
-#include "Core/Parser.h"
-#include "../include/Network/tpool.h"
+#include "Network/Server.hpp"
+#include "Core/Parser.hpp"
+#include "../include/Network/tpool.hpp"
 
 void Process(void *arg)
 {
@@ -75,7 +75,7 @@ void server()
     while (1)
     {
         // Accepting client
-        int *client_fd = malloc(sizeof(int)); // dynamic storage is use for every new client
+        int *client_fd = new int; // dynamic storage is use for every new client
 
         *client_fd = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen);
 
@@ -83,6 +83,7 @@ void server()
         {
             printf("Error accepting client connection.\n");
             free(client_fd);
+            delete client_fd;
             continue;
         }
 

@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "io/Input.h"
-#include "Core/Parser.h"
-#include "Core/Calculator.h"
-#include "conio.h"
-#include "Network/Server.h"
-#include "Network/Client.h"
+#include "io/Input.hpp"
+#include "Core/Parser.hpp"
+#include "Core/Calculator.hpp"
+#include "conio.hpp"
+#include "Network/Server.hpp"
+#include "Network/Client.hpp"
 
 void FileInput()
 {
@@ -18,10 +18,20 @@ void FileInput()
 
     char expr[100];
     int index = 0;
+    int c;
     char ch;
 
-    while ((ch = fgetc(in_file)) != EOF)
+    while ((c = fgetc(in_file)) != EOF)
     {
+        ch = (char)c;
+
+        if (index >= (int)sizeof(expr) - 1)
+        {
+            fprintf(stderr, "Expression too long, resetting buffer.\n");
+            index = 0;
+            continue;
+        }
+
         expr[index++] = ch;
 
         if (ch == '=')
@@ -52,8 +62,8 @@ int convert(int *num1, int *num2, char *op)
 
         if (ch == 27)
         {
-            printf("hThank you for using this calculator\n");
-            printf("Exting Bye!.\n");
+            printf("Thank you for using this calculator\n");
+            printf("Exiting Bye!.\n");
             return 0;
         }
 
@@ -90,17 +100,23 @@ int convert(int *num1, int *num2, char *op)
     }
 }
 
-void CheckInput(int *n1, int *n2, char *operator, int *result, int argc, char *argv[])
+void CheckInput(int *n1, int *n2, char *operatorion, int *result, int argc, char *argv[])
 {
     int Input = 0;
 
+    if (argc <= 1)
+    {
+        printf("Invalid input method\n");
+        return;
+    }
+
     for (int i = 1; i < argc; i++)
     {
-        if (argv[1][0] == '-' && argv[1][1] == 'k')
+        if (argv[i][0] == '-' && argv[i][1] == 'k')
             Input = 2;
-        else if (argv[1][0] == '-' && argv[1][1] == 'f')
+        else if (argv[i][0] == '-' && argv[i][1] == 'f')
             Input = 1;
-        else if (argv[1][0] == '-' && argv[1][1] == 'C')
+        else if (argv[i][0] == '-' && argv[i][1] == 'C')
             Input = 3;
     }
 
@@ -112,12 +128,12 @@ void CheckInput(int *n1, int *n2, char *operator, int *result, int argc, char *a
     {
         while (1)
         {
-            int status = convert(n1, n2, operator);
+            int status = convert(n1, n2, operatorion);
             if (status == 0)
                 break;
 
-            printf("%d %c %d = %d\n", *n1, *operator, *n2,
-                   calculate(*n1, *n2, *operator, NULL));
+            printf("%d %c %d = %d\n", *n1, *operatorion, *n2,
+                   calculate(*n1, *n2, *operatorion, result));
             *n1 = 0;
         }
     }
