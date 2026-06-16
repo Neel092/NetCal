@@ -5,7 +5,7 @@
 
 #include "../include/Network/tpool.hpp"
 
-static void *worker_thread(void *arg)
+void *threadpool_t::worker_thread(void *arg)
 {
     threadpool_t *pool = (threadpool_t *)arg;
 
@@ -37,64 +37,62 @@ static void *worker_thread(void *arg)
     return NULL;
 }
 
-threadpool_t *threadpool_create(int num_threads)
+threadpool_t::threadpool_t(int num_threads)
 {
-    threadpool_t *pool = (threadpool_t *)malloc(sizeof(threadpool_t));
-    pool->num_threads = num_threads;
-    pool->queue_size = 0;
-    pool->queue_front = 0;
-    pool->queue_rear = 0;
-    pool->shutdown = 0;
+    // threadpool_t pool() = new threadpool_t(num_threads);
+    this->num_threads = num_threads;
+    this->queue_size = 0;
+    this->queue_front = 0;
+    this->queue_rear = 0;
+    this->shutdown = 0;
 
-    pthread_mutex_init(&pool->lock, NULL);
-    pthread_cond_init(&pool->not_empty, NULL);
-    pthread_cond_init(&pool->not_full, NULL);
+    pthread_mutex_init(&lock, NULL);
+    pthread_cond_init(&not_empty, NULL);
+    pthread_cond_init(&not_full, NULL);
 
-    pool->workers = (pthread_t *)malloc(num_threads * sizeof(pthread_t));
+    workers = (pthread_t *)malloc(num_threads * sizeof(pthread_t));
     for (int i = 0; i < num_threads; i++)
-        pthread_create(&pool->workers[i], NULL, worker_thread, pool);
-
-    return pool;
+        pthread_create(&workers[i], NULL, worker_thread, this);
 }
 
-int threadpool_submit(threadpool_t *pool, void (*func)(void *), void *arg)
+int threadpool_t::submit(void (*func)(void *), void *arg)
 {
-    pthread_mutex_lock(&pool->lock);
+    pthread_mutex_lock(&lock);
 
     // Wait if queue is full
-    while (pool->queue_size == MAX_QUEUE && !pool->shutdown)
-        pthread_cond_wait(&pool->not_full, &pool->lock);
+    while (queue_size == MAX_QUEUE && !shutdown)
+        pthread_cond_wait(&not_full, &lock);
 
-    if (pool->shutdown)
+    if (shutdown)
     {
-        pthread_mutex_unlock(&pool->lock);
+        pthread_mutex_unlock(&lock);
         return -1;
     }
 
     // Enqueue task
-    pool->queue[pool->queue_rear].function = func;
-    pool->queue[pool->queue_rear].arg = arg;
-    pool->queue_rear = (pool->queue_rear + 1) % MAX_QUEUE;
-    pool->queue_size++;
+    queue[queue_rear].function = func;
+    queue[queue_rear].arg = arg;
+    queue_rear = (queue_rear + 1) % MAX_QUEUE;
+    queue_size++;
 
-    pthread_cond_signal(&pool->not_empty);
-    pthread_mutex_unlock(&pool->lock);
+    pthread_cond_signal(&not_empty);
+    pthread_mutex_unlock(&lock);
+
     return 0;
 }
 
-void threadpool_destroy(threadpool_t *pool)
+threadpool_t::~threadpool_t()
 {
-    pthread_mutex_lock(&pool->lock);
-    pool->shutdown = 1;
-    pthread_cond_broadcast(&pool->not_empty);
-    pthread_mutex_unlock(&pool->lock);
+    pthread_mutex_lock(&lock);
+    shutdown = 1;
+    pthread_cond_broadcast(&not_empty);
+    pthread_mutex_unlock(&lock);
 
-    for (int i = 0; i < pool->num_threads; i++)
-        pthread_join(pool->workers[i], NULL);
+    for (int i = 0; i < num_threads; i++)
+        pthread_join(workers[i], NULL);
 
-    pthread_mutex_destroy(&pool->lock);
-    pthread_cond_destroy(&pool->not_empty);
-    pthread_cond_destroy(&pool->not_full);
-    free(pool->workers);
-    free(pool);
+    pthread_mutex_destroy(&lock);
+    pthread_cond_destroy(&not_empty);
+    pthread_cond_destroy(&not_full);
+    free(workers);
 }

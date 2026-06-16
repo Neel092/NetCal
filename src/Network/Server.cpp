@@ -12,7 +12,7 @@
 void Process(void *arg)
 {
     int client_fd = *(int *)arg;
-    free(arg);
+    delete (int *)arg;
 
     char buffer[1024];
     char response[100];
@@ -70,7 +70,7 @@ void server()
 
     printf("Server running...\n");
 
-    threadpool_t *pool = threadpool_create(4);
+    threadpool_t pool(4);
 
     while (1)
     {
@@ -82,7 +82,7 @@ void server()
         if (*client_fd < 0)
         {
             printf("Error accepting client connection.\n");
-            free(client_fd);
+            // free(client_fd);
             delete client_fd;
             continue;
         }
@@ -93,14 +93,13 @@ void server()
         // pthread_t thread_id;
 
         // create thread
-        threadpool_submit(pool, Process, client_fd);
+        pool.submit(Process, client_fd);
         /*
             thread_id => identify the client
             Process => which fun to run
             Client_fd => data to process
         */
     }
-    threadpool_destroy(pool);
     // threadpool_destory
     close(server_fd);
 }

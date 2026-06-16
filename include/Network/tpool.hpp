@@ -6,17 +6,17 @@
 #define MAX_QUEUE 100
 
 // Task
-typedef struct task
+class task_t
 {
+public:
     void (*function)(void *);
     void *arg;
-
-} task_t;
+};
 
 // ThreadPool
-typedef struct
+class threadpool_t
 {
-
+public:
     pthread_t *workers;
 
     int num_threads;
@@ -32,16 +32,22 @@ typedef struct
 
     int shutdown;
 
-} threadpool_t;
+    static void *worker_thread(void *arg);
 
-threadpool_t *threadpool_create(int num_threads);
+    threadpool_t(int num_threads);
+    ~threadpool_t();
 
-int threadpool_submit(
-    threadpool_t *pool,
-    void (*function)(void *),
-    void *arg);
+    int submit(void (*function)(void *), void *arg);
+};
 
-void threadpool_destroy(
-    threadpool_t *pool);
+// threadpool_t *threadpool_create(int num_threads);
+
+// int threadpool_submit(
+//     threadpool_t *pool,
+//     void (*function)(void *),
+//     void *arg);
+
+// void threadpool_destroy(
+//     threadpool_t *pool);
 
 #endif
