@@ -7,12 +7,12 @@
 #include "Network/Server.hpp"
 #include "Network/Client.hpp"
 
-void FileInput()
+void FileInput(const char *path)
 {
-    FILE *in_file = fopen("file.txt", "r");
+    FILE *in_file = fopen(path, "r");
     if (in_file == NULL)
     {
-        printf("file.txt file failed to open.\n");
+        printf("Cannot open file: %s\n", path);
         return;
     }
 
@@ -103,6 +103,7 @@ int convert(int *num1, int *num2, char *op)
 void CheckInput(int *n1, int *n2, char *operatorion, int *result, int argc, char *argv[])
 {
     int Input = 0;
+    const char *filepath = "Data/file.txt"; // default file path
 
     if (argc <= 1)
     {
@@ -114,15 +115,19 @@ void CheckInput(int *n1, int *n2, char *operatorion, int *result, int argc, char
     {
         if (argv[i][0] == '-' && argv[i][1] == 'k')
             Input = 2;
-        else if (argv[i][0] == '-' && argv[i][1] == 'f')
+        else if (argv[i][0] == '-' && argv[i][1] == 'f' && i + 1 < argc)
+        {
             Input = 1;
+            filepath = argv[i + 1]; // grab the next argument
+            i++;                    // skip it in the loop
+        }
         else if (argv[i][0] == '-' && argv[i][1] == 'C')
             Input = 3;
     }
 
     if (Input == 1)
     {
-        FileInput();
+        FileInput(filepath);
     }
     else if (Input == 2)
     {
