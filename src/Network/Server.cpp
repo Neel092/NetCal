@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
 #include <pthread.h>
+#include <iostream>
+#include <asio.hpp>
+using namespace std;
 
 #include "Network/Server.hpp"
 #include "Core/Parser.hpp"
@@ -14,7 +15,11 @@ void Process(void *arg)
     int client_fd = *(int *)arg;
     delete (int *)arg;
 
-    char buffer[1024];
+    asio::io_context io;
+    asio::ip::tcp::socket socket(io);
+    socket.assign(asio::ip::tcp::v4(), client_fd);
+
+    char buffer[1025];
     char response[100];
 
     while (1)
@@ -22,11 +27,26 @@ void Process(void *arg)
         memset(buffer, 0, sizeof(buffer));
 
         //  Read data
-        int bytes = read(client_fd, buffer, sizeof(buffer) - 1);
+        asio::error_code error;
+        size_t bytes =
 
-        if (bytes <= 0)
+            socket.read_some(
+
+                asio::buffer(buffer, 1024),
+                error
+
+            );
+
+        if (error)
         {
-            printf("Client disconnected abruptly.\n");
+            if (error == asio::error::eof)
+            {
+                printf("Client disconnected.\n");
+            }
+            else
+            {
+                printf("Error reading from client: %s\n", error.message().c_str());
+            }
             break;
         }
 
@@ -42,31 +62,39 @@ void Process(void *arg)
         // Process data
         int ans = Client_Server(buffer);
 
-        // Send response
-        sprintf(response, "%d", ans);
-        send(client_fd, response, strlen(response), 0);
+        snprintf(response, sizeof(response), "Result: %d", ans);
+
+        asio::error_code write_error;
+        asio::write(socket, asio::buffer(response, strlen(response)), write_error);
+        if (write_error)
+        {
+            printf("Write error: %s\n", write_error.message().c_str());
+            break;
+        }
     }
 
     // exit client
-    close(client_fd);
+    asio::error_code ec;
+    socket.close(ec);
     printf("Connection closed.\n");
 }
+
 void server()
 {
-    int server_fd, new_socket;
-    struct sockaddr_in address;
-    int addrlen = sizeof(address);
-    char buffer[1024] = {0};
-    char response[100] = {0};
+    // Event Manager
+    asio::io_context io;
 
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    // Create Endpoint
+    asio::ip::tcp::endpoint endpoint(
+        asio::ip::tcp::v4(),
+        8080);
 
-    address.sin_family = AF_INET;         // AF_INET tells which Ipv4 is in use
-    address.sin_addr.s_addr = INADDR_ANY; // beacuse of the all system will connect like localHost,wiFi IP and Ethernet IP , INADDR_ANY(Internet Address – Any)
-    address.sin_port = htons(8080);       // mark to port 8080
+    // Creating acceptor
+    asio::ip::tcp::acceptor acceptor(
+        io,
+        endpoint);
 
-    bind(server_fd, (struct sockaddr *)&address, sizeof(address));
-    listen(server_fd, 10);
+    cout << "Server Started" << endl;
 
     printf("Server running...\n");
 
@@ -75,22 +103,20 @@ void server()
     while (1)
     {
         // Accepting client
-        int *client_fd = new int; // dynamic storage is use for every new client
+        asio::ip::tcp::socket socket(io);
 
-        *client_fd = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen);
+        cout << "Waiting for Client" << endl;
 
+        acceptor.accept(socket);
+        int *client_fd = new int(socket.native_handle());
         if (*client_fd < 0)
         {
             printf("Error accepting client connection.\n");
-            // free(client_fd);
             delete client_fd;
             continue;
         }
 
         printf("New Client connected...\n");
-
-        // initialization new thread for new client (POSIX Threads) => posix(Portable Operating System Interface)
-        // pthread_t thread_id;
 
         // create thread
         pool.submit(Process, client_fd);
@@ -99,7 +125,8 @@ void server()
             Process => which fun to run
             Client_fd => data to process
         */
+
+        socket.release();
     }
     // threadpool_destory
-    close(server_fd);
 }

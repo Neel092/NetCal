@@ -1,197 +1,57 @@
-# NetCal (C++)
+# NetCal
 
-## Overview
-
-**NetCal** is a modular multi-threaded client-server calculator built in **Modern C++** using **TCP socket programming** and a custom **Thread Pool** implementation.
-
-The project demonstrates low-level networking, concurrent task execution, expression parsing, and modular software design. Instead of spawning a new thread for every client connection, NetCal uses a fixed-size thread pool to efficiently serve multiple clients while maintaining predictable resource usage.
+A multi-threaded client-server calculator written in **C++17**. Send arithmetic expressions over TCP, get results back. Handles multiple clients simultaneously using a hand-rolled thread pool — no new thread per connection.
 
 ---
 
-## Features
+## What It Does
 
-* TCP-based client-server communication
-* Custom Thread Pool implementation
-* Fixed-size circular task queue
-* Concurrent multi-client support
-* Expression parsing and evaluation
-* Interactive keyboard input
-* File-based batch processing
-* Modular C++ architecture
-* Graceful worker shutdown
+- Parses and evaluates expressions like `12+5=` or `100/4=`
+- Accepts multiple simultaneous client connections
+- Server maintains a fixed pool of 4 worker threads — clients queue up, never spin up new threads
+- Three modes: keyboard, file batch, and client-server over TCP
 
 ---
 
-## Thread Pool Architecture
+## Prerequisites
 
-### Design Idea
+**Compiler:** g++ with C++17 support
 
-Creating a new thread for every incoming connection is expensive and does not scale well.
+**ASIO** (standalone, no Boost):
 
-NetCal uses a **Thread Pool model**:
+```bash
+# Ubuntu / Debian
+sudo apt install libasio-dev
 
-* A fixed number of worker threads are created during server startup.
-* Incoming client connections are converted into tasks.
-* Tasks are inserted into a shared circular queue.
-* Worker threads continuously fetch and execute tasks.
-* The number of threads remains constant regardless of the number of clients.
+# Arch
+sudo pacman -S asio
 
-This approach reduces:
-
-* Thread creation overhead
-* Context switching cost
-* Memory consumption
-* Scheduling overhead
-
----
-
-### Components
-
-#### Main Thread
-
-Responsible for:
-
-* Creating the server socket
-* Binding and listening on a TCP port
-* Accepting incoming connections
-* Submitting client requests to the thread pool
-
----
-
-#### Worker Threads
-
-Each worker thread:
-
-* Waits if the queue is empty
-* Dequeues the next task
-* Reads client requests
-* Parses and evaluates expressions
-* Sends the result back
-* Closes the client connection
-
----
-
-#### Task Queue
-
-The thread pool uses:
-
-* Fixed-size circular buffer
-* Producer-consumer synchronization
-* Mutex for shared queue protection
-* Condition variables for blocking and signalling
-
-Features:
-
-* Queue Capacity: `MAX_QUEUE = 100`
-* Producers block when queue is full
-* Workers sleep when queue is empty
-* Graceful shutdown support
-
----
-
-## System Flow
-
-```text
-Client                          Server
-
-  |                               |
-  | socket()                      | socket()
-  |                               |
-  | connect() ------------------> | bind()
-  |                               | listen()
-  |                               |
-  |                               | accept()
-  |                               |
-  |                               v
-  |                    threadpool_submit()
-  |                               |
-  |                               v
-  |                      Worker Thread
-  |                               |
-  | send("12+5=") -------------> read()
-  |                               |
-  |                        parse()
-  |                        calculate()
-  |                               |
-  | recv("17") <--------------- send("17")
-  |                               |
-  | send("Q") -----------------> close()
-  |                               |
-close()                       Worker Ready
+# macOS
+brew install asio
 ```
 
----
-
-## Tech Stack
-
-* C++17
-* POSIX TCP Sockets
-* POSIX Threads (pthread)
-* Mutex and Condition Variables
-* Circular Queue
-* Linux System Programming
-
----
-
-## Project Structure
-
-```text
-NetCal/
-
-├── src
-│   ├── Main.cpp
-│   │
-│   ├── Core
-│   │   ├── Calculator.cpp
-│   │   └── Parser.cpp
-│   │
-│   ├── Network
-│   │   ├── Server.cpp
-│   │   ├── Client.cpp
-│   │   └── tpool.cpp
-│   │
-│   └── io
-│       └── Input.cpp
-│
-
-├── include
-│   ├── Core
-│   │   ├── Calculator.hpp
-│   │   └── Parser.hpp
-│   │
-│   ├── Network
-│   │   ├── Server.hpp
-│   │   ├── Client.hpp
-│   │   └── tpool.hpp
-│   │
-│   └── io
-│       └── Input.hpp
-│
-
-└── Data
-    └── file.txt
-```
+> If you install ASIO manually, download from https://think-async.com/Asio/ and pass `-I/path/to/asio/include` during compilation.
 
 ---
 
 ## Build
 
-Compile using:
-
 ```bash
 g++ -std=c++17 \
-src/Core/*.cpp \
-src/io/*.cpp \
-src/Network/*.cpp \
-src/Main.cpp \
--Iinclude \
--lpthread \
--o app
+  src/Core/*.cpp \
+  src/io/*.cpp \
+  src/Network/*.cpp \
+  src/Main.cpp \
+  -Iinclude \
+  -lpthread \
+  -o app
 ```
+
+No `-lboost_system` needed — this uses standalone ASIO.
 
 ---
 
-## Run Modes
+## Run
 
 ### Keyboard Mode
 
@@ -199,116 +59,202 @@ src/Main.cpp \
 ./app -k
 ```
 
-* Enter expression using keyboard
-* Press Enter to evaluate
-* Press Esc to exit
+Enter digits and operators one key at a time. Press `Enter` to evaluate, `Esc` to quit.
+
+```
+>> 1
+1
+>> 2
+12
+>> +
+>> 5
+5
+>> (Enter)
+12 + 5 = 17
+```
 
 ---
 
 ### File Mode
 
 ```bash
-./app -f
+./app -f [filepath]
 ```
 
-Reads expressions from:
+Pass any file path after `-f`. If no path is given, defaults to `Data/file.txt`.
+
+```bash
+./app -f                            # uses Data/file.txt (default)
+./app -f Data/file.txt              # same, explicit
+./app -f /home/neel/expressions.txt # absolute path
+./app -f myexpressions.txt          # relative path
+```
+
+Each expression in the file must end with `=`. One expression per line.
 
 ```text
-Data/file.txt
+10-20=
+15+25=
+30*4=
+100/5=
+50%6=
+999+1=*5=      ← chained: evaluates 999+1, then result*5
 ```
 
-and prints results to stdout.
+Output:
+
+```
+10-20= -10
+15+25= 40
+30*4= 120
+...
+```
 
 ---
 
 ### Client-Server Mode
 
-Start Server:
+Start the server:
 
 ```bash
 ./app -C
-
-Select:
-1 -> Server
+# prompt: 1 => Start Server
+1
 ```
 
-Start Client:
+In separate terminals, start one or more clients:
 
 ```bash
 ./app -C
-
-Select:
-2 -> Client
+# prompt: 2 => Start Client
+2
 ```
 
-Multiple clients can connect simultaneously.
+Client session:
 
----
-
-## Example Expressions
-
-```text
+```
+Enter numeric value for calculation :-
 12+5=
+Result: 17
 
-10*3=
+Enter numeric value for calculation :-
+100/4=
+Result: 25
 
-100/5=
-
-50%6=
+Enter numeric value for calculation :-
+q
+Exiting...
 ```
 
-Supported Operators:
+Type `Q` or `q` to end a client session. Server keeps running for other clients.
 
-```text
-+
--
-*
-/
-%
+---
+
+## Supported Operators
+
+| Operator | Example  | Result |
+|----------|----------|--------|
+| `+`      | `12+5=`  | 17     |
+| `-`      | `90-100=`| -10    |
+| `*`      | `10*3=`  | 30     |
+| `/`      | `100/5=` | 20     |
+| `%`      | `50%6=`  | 2      |
+
+Expressions must end with `=`. Chaining is supported: `999+1=*5=` evaluates left to right.
+
+---
+
+## Architecture
+
+### Thread Pool
+
+The server creates 4 worker threads at startup. They stay alive the entire time — no thread creation per connection.
+
+```
+Main Thread                     Worker Threads (x4)
+    |                                   |
+accept() → client_fd                    | waiting on condition variable
+    |                                   |
+pool.submit(Process, client_fd)  -----> | wakes up, dequeues task
+    |                                   |
+socket.release()                        | socket.assign(client_fd)
+(transfers fd ownership)                | read → parse → write → close
 ```
 
-Multiple expressions can be chained:
+The task queue is a circular buffer (capacity 100). If all workers are busy and the queue is full, the main thread blocks until a slot opens — no connections are dropped.
 
-```text
-12+5=10*3=
+### Shutdown
+
+When the server exits, `~threadpool_t()` sets `shutdown = 1`, broadcasts to all sleeping workers, and joins every thread before freeing memory.
+
+---
+
+## Project Structure
+
+```
+NetCal/
+├── src/
+│   ├── Main.cpp                  Entry point, argument dispatch
+│   ├── Core/
+│   │   ├── Calculator.cpp        calculate(num1, num2, op)
+│   │   └── Parser.cpp            parse_and_calculate(expr_string)
+│   ├── Network/
+│   │   ├── Server.cpp            TCP acceptor + thread pool submission
+│   │   ├── Client.cpp            TCP client send/receive loop
+│   │   └── tpool.cpp             Thread pool implementation
+│   └── io/
+│       └── Input.cpp             Mode dispatch: -k / -f / -C
+│
+├── include/                      Header files mirroring src/
+│
+└── Data/
+    └── file.txt                  Expressions for file mode
 ```
 
 ---
 
-## Key Learnings
+## How the Code Fits Together
 
-This project helped me understand:
-
-* TCP socket lifecycle
-* Client-server architecture
-* Thread Pool design
-* Producer-consumer synchronization
-* Circular queue implementation
-* Mutex and condition variables
-* Concurrent programming in C++
-* Expression parsing and evaluation
-* Modular software architecture
+```
+argv
+ └── CheckInput()          [io/Input.cpp]
+      ├── -k → convert()              keyboard loop using getch()
+      ├── -f [path] → FileInput(path)  reads given file, defaults to Data/file.txt
+      └── -C → server() or client()
+                │
+                ├── server()          [Network/Server.cpp]
+                │    └── threadpool_t pool(4)
+                │         └── pool.submit(Process, client_fd)
+                │              └── Process()
+                │                   └── parse_and_calculate(buffer)
+                │                        └── calculate(n1, n2, op)
+                │
+                └── client()          [Network/Client.cpp]
+                     └── fgets → asio::write → read_some → print
+```
 
 ---
 
-## Future Improvements
+## Known Limitations
 
-* Async networking using Boost.Asio
+- Integer arithmetic only (no floats)
+- Port is hardcoded to `8080`
+- Thread count is hardcoded to `4`
+- No logging — errors print to stdout
 
-* Configurable port and thread pool size
+---
 
-* Logging system
+## Possible Next Steps
 
-* Unit testing using Google Test
-
-* Docker support
-
-* Event-driven server using epoll
+- `--port` and `--threads` CLI flags
+- Float support in the parser
+- File + stderr logging
+- Unit tests (Google Test) for `parse_and_calculate`
+- Async ASIO (`async_accept` / `async_read`) to remove the thread pool entirely
+- Docker image for easy distribution
 
 ---
 
 ## Author
 
-**Neel Patil**
-
-Computer Science Student
+**Neel Patil** — Computer Science Student
